@@ -1,74 +1,121 @@
 # Object Detection Service
 
-This service provides a REST API for object detection using YOLOv8.
+This service provides a REST API for object detection using YOLOv8. It is containerized with Docker and includes a fully automated CI/CD pipeline via GitHub Actions.
 
-## Stack
+## Tech Stack
 
 - **Language:** Python 3.11.9
 - **Framework:** FastAPI
 - **ML Model:** YOLOv8 (Ultralytics)
 - **Container:** Docker
+- **CI/CD:** GitHub Actions
 
-## Model Configuration
+---
 
-The service is configured by default to look for a custom model at `models/best.pt`.
+## 🚀 Quick Start (Run the latest version)
 
-1. **Commit your model:** Place your `best.pt` in the `models/` folder and commit it to the repository.
-   *(Note: Since the model is small (<100MB), we are committing it directly to Git so it gets built into the Docker image automatically.)*
-2. **Run:** The service will automatically load it.
+Prerequisite: Docker must be installed.
 
-*Fallback:* If `models/best.pt` is not found, the service will automatically fall back to the standard `yolov8n.pt` (Nano) model.
+```bash
+docker run -p 8000:8000 notcoolkid/detector-service:latest
+```
 
-## CI/CD (GitHub Actions)
+- **API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Health Check:** [http://localhost:8000/](http://localhost:8000/)
 
-This project is configured to automatically build and push the Docker image to Docker Hub when changes are pushed to the `main` branch.
+---
 
-### Setup Secrets
-To enable the workflow, you must add the following secrets to your GitHub repository settings (`Settings` -> `Secrets and variables` -> `Actions`):
+## 🧠 Model Management
 
-1. `DOCKER_USERNAME`: Your Docker Hub username.
-2. `DOCKER_PASSWORD`: Your Docker Hub access token (preferred) or password.
+The service is pre-configured to use a custom trained model located at `models/best.pt`.
 
-## Setup
+### How to Update the Model
 
-### Local Development
+1.  **Replace the file:** Overwrite `models/best.pt` with your new trained model file.
+2.  **Commit & Push:**
+    ```bash
+    git add models/best.pt
+    git commit -m "chore: update model to v2"
+    git push origin main
+    ```
+3.  **Auto-Deploy:**
+    - GitHub Actions will automatically detect the change.
+    - It will rebuild the Docker image *with the new model baked in*.
+    - It will push the new image to Docker Hub.
+4.  **Update Production:**
+    - Run `docker pull notcoolkid/detector-service:latest` on your server/machine to get the new model.
 
-1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+*(Note: If `models/best.pt` is missing, the service will fallback to `yolov8n.pt` (Nano) to prevent crashing.)*
 
-2. Run the server:
-   ```bash
-   python main.py
-   ```
-   The API will be available at `http://localhost:8000`.
-   Interactive docs: `http://localhost:8000/docs`.
+---
 
-### Docker
+## 🛠️ Development Setup
 
-1. Build the image:
-   ```bash
-   docker build -t detector-service .
-   ```
+### Option 1: Docker (Recommended)
 
-2. Run (mounting the models folder):
-   ```bash
-   docker run -p 8000:8000 -v ${PWD}/models:/app/models detector-service
-   ```
-   *Note: The `-v` flag is crucial so the container can see the `best.pt` file on your host machine.*
+```bash
+# Build the image locally
+docker build -t detector-service .
 
-## API Usage
+# Run the container
+docker run -p 8000:8000 detector-service
+```
+
+### Option 2: Local Python Environment
+
+1.  **Install Dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+2.  **Run the Server:**
+    ```bash
+    python main.py
+    ```
+
+---
+
+## ⚙️ CI/CD Pipeline
+
+The project uses **GitHub Actions** (`.github/workflows/docker-publish.yml`) to automate the build process.
+
+### Workflow
+Every time you push to the `main` branch:
+1.  GitHub checks out the code (including the model).
+2.  It builds the Docker image.
+3.  It pushes the image to Docker Hub at `notcoolkid/detector-service:latest`.
+
+### Secrets Configuration
+If you fork this repo, you must configure these Repository Secrets in GitHub:
+- `DOCKER_USERNAME`: Your Docker Hub username.
+- `DOCKER_PASSWORD`: Your Docker Hub Access Token.
+
+---
+
+## 📡 API Usage
 
 ### `POST /predict`
 
 Upload an image file to detect objects.
 
 **Example using cURL:**
-
 ```bash
 curl -X POST "http://localhost:8000/predict" \
   -H "accept: application/json" \
   -H "Content-Type: multipart/form-data" \
   -F "file=@/path/to/your/image.jpg"
+```
+
+**Example Response:**
+```json
+{
+  "filename": "image.jpg",
+  "detections": [
+    {
+      "class": "helmet",
+      "confidence": 0.95,
+      "bbox": [100, 150, 200, 250]
+    }
+  ],
+  "count": 1
+}
 ```
