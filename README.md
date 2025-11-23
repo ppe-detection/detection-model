@@ -1,18 +1,20 @@
-# Object Detection Service
+# Object Detection Service (Cascade Person -> PPE)
 
-This service provides a REST API for object detection using YOLOv8. It is containerized with Docker and includes a fully automated CI/CD pipeline via GitHub Actions.
+This service implements a **two-stage cascade detection system**:
+1.  **Stage 1:** Detects **People** in the full frame using a standard pre-trained YOLO model from https://github.com/J3lly-Been/YOLOv8-HumanDetection.
+2.  **Stage 2:** Crops each person and detects **PPE** (Personal Protective Equipment) specifically on them using a custom trained model.
 
 ## Tech Stack
 
 - **Language:** Python 3.11.9
 - **Framework:** FastAPI
-- **ML Model:** YOLOv8 (Ultralytics)
+- **ML Models:** YOLOv8 (Ultralytics) x 2
 - **Container:** Docker
 - **CI/CD:** GitHub Actions
 
 ---
 
-## 🚀 Quick Start (Run the latest version)
+## Quick Start
 
 Prerequisite: Docker must be installed.
 
@@ -21,44 +23,65 @@ docker run -p 8000:8000 notcoolkid/detector-service:latest
 ```
 
 - **API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Health Check:** [http://localhost:8000/](http://localhost:8000/)
 
 ---
 
-## 🧠 Model Management
+## Model Configuration
 
-The service is pre-configured to use a custom trained model located at `models/best.pt`.
+The service uses **two** models, configured via environment variables:
 
-### How to Update the Model
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `MODEL_PERSON` | `models/human_detector.pt` | Specialized Human Detection Model. |
+| `MODEL_PPE` | `models/ppe_detector.pt` | Our trained PPE-detection model. |
 
-1.  **Replace the file:** Overwrite `models/best.pt` with your new trained model file.
+### How to Update Models
+
+1.  **Place Files:**
+    - Put human detector at `models/human_detector.pt`.
+    - Put PPE detector at `models/ppe_detector.pt`.
 2.  **Commit & Push:**
     ```bash
-    git add models/best.pt
-    git commit -m "chore: update model to v2"
+    git add models/human_detector.pt models/ppe_detector.pt
+    git commit -m "chore: update detection models"
     git push origin main
     ```
-3.  **Deploy (Manual Trigger):**
-    - Go to the **Actions** tab in this GitHub repository.
-    - Select the **Build and Push Docker Image** workflow on the left.
-    - Click the **Run workflow** button.
-    - This will build the new image with your updated model and push it to Docker Hub.
-4.  **Update Production:**
-    - Run `docker pull notcoolkid/detector-service:latest` on your server/machine to get the new model.
-
-*(Note: If `models/best.pt` is missing, the service will fallback to `yolov8n.pt` (Nano) to prevent crashing.)*
+3.  **Deploy:** Manually trigger the GitHub Action "Build and Push Docker Image".
 
 ---
 
-## 🛠️ Development Setup
+## API Response Structure
 
-### Option 1: Docker (Recommended)
+The API now returns detections with a `type` field ("primary" for person, "secondary" for PPE) and links PPE items to their parent person.
+
+```json
+{
+  "detections": [
+    {
+      "class": "person",
+      "confidence": 0.98,
+      "bbox": [100, 100, 300, 500],
+      "type": "primary"
+    },
+    {
+      "class": "helmet",
+      "confidence": 0.95,
+      "bbox": [120, 110, 200, 180],
+      "type": "secondary",
+      "parent_person_bbox": [100, 100, 300, 500]
+    }
+  ]
+}
+```
+
+---
+
+## Development Setup
+
+### Option 1: Docker
 
 ```bash
-# Build the image locally
 docker build -t detector-service .
-
-# Run the container
 docker run -p 8000:8000 detector-service
 ```
 
@@ -68,52 +91,13 @@ docker run -p 8000:8000 detector-service
     ```bash
     pip install -r requirements.txt
     ```
-2.  **Run the Server:**
+2.  **Configure Environment:**
+    Create a `.env` file in the project root:
+    ```env
+    MODEL_PERSON=models/human_detector.pt
+    MODEL_PPE=models/ppe_detector.pt
+    ```
+3.  **Run the Server:**
     ```bash
     python main.py
     ```
-
----
-
-## ⚙️ CI/CD Pipeline
-
-The project uses **GitHub Actions** (`.github/workflows/docker-publish.yml`) to automate the build process.
-
-### Workflow Strategy
-The workflow is set to **Manual Trigger** (`workflow_dispatch`) to prevent accidental deployments during development. It does NOT run automatically on push.
-
-### Secrets Configuration
-If you fork this repo, you must configure these Repository Secrets in GitHub:
-- `DOCKER_USERNAME`: Your Docker Hub username.
-- `DOCKER_PASSWORD`: Your Docker Hub Access Token.
-
----
-
-## 📡 API Usage
-
-### `POST /predict`
-
-Upload an image file to detect objects.
-
-**Example using cURL:**
-```bash
-curl -X POST "http://localhost:8000/predict" \
-  -H "accept: application/json" \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@/path/to/your/image.jpg"
-```
-
-**Example Response:**
-```json
-{
-  "filename": "image.jpg",
-  "detections": [
-    {
-      "class": "helmet",
-      "confidence": 0.95,
-      "bbox": [100, 150, 200, 250]
-    }
-  ],
-  "count": 1
-}
-```

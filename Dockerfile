@@ -7,7 +7,8 @@ FROM python:3.11.9-slim
 # PYTHONUNBUFFERED: Prevents Python from buffering stdout and stderr
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV YOLO_MODEL=models/best.pt
+ENV MODEL_PERSON=models/human_detector.pt
+ENV MODEL_PPE=models/ppe_detector.pt
 
 # Set work directory
 WORKDIR /app
